@@ -155,11 +155,6 @@ export default function App() {
               {VIZ.map(v => <option key={v} value={v}>{v === '' ? 'Skin default' : v}</option>)}
             </select>
           </label>
-          <label className="field">Playback speed
-            <select value={s.rate} onChange={e => s.setRate(Number(e.target.value))}>
-              {[0.5, 0.75, 1, 1.25, 1.5, 2].map(r => <option key={r} value={r}>{r}×</option>)}
-            </select>
-          </label>
           <label className="field row">
             <input type="checkbox" checked={s.scanlines} onChange={e => s.setScanlines(e.target.checked)} /> CRT scanlines
           </label>

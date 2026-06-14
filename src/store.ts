@@ -15,7 +15,6 @@ interface State {
   positionMs: number;
   durationMs: number;
   volume: number;           // 0..1
-  rate: number;
   shuffle: boolean;
   repeat: Repeat;
   liked: Record<string, boolean>;
@@ -32,7 +31,6 @@ interface State {
   prev: () => Promise<void>;
   seek: (ms: number) => void;
   setVolume: (v: number) => void;
-  setRate: (r: number) => void;
   toggleShuffle: () => void;
   cycleRepeat: () => void;
   toggleLike: () => void;
@@ -51,7 +49,7 @@ function buildQueue(n: number, shuffle: boolean): number[] {
 export const useStore = create<State>((set, get) => ({
   tracks: [], queue: [], current: -1,
   isPlaying: false, positionMs: 0, durationMs: 0,
-  volume: 0.7, rate: 1, shuffle: false, repeat: 'off',
+  volume: 0.7, shuffle: false, repeat: 'off',
   liked: {}, skinId: 'neo-retro-premium', vizOverride: '', scanlines: true,
 
   importFiles: async () => {
@@ -97,7 +95,6 @@ export const useStore = create<State>((set, get) => ({
 
   seek: (ms) => { source.seek(ms); set({ positionMs: ms }); },
   setVolume: (v) => { source.setVolume(v); set({ volume: v }); get().persist(); },
-  setRate: (r) => { source.setRate(r); set({ rate: r }); },
   toggleShuffle: () => {
     const { shuffle, tracks } = get(); const ns = !shuffle;
     set({ shuffle: ns, queue: buildQueue(tracks.length, ns), current: tracks.length ? 0 : -1 });
