@@ -60,6 +60,6 @@ src/App.tsx            full UI (library, player, controls, settings)
 
 ## Notes / limits
 - Not a signed installer — `npm run dist` produces an unsigned `.exe` (Windows SmartScreen may warn).
-- Drag-and-drop import isn't wired yet; use the Add buttons (easy follow-up).
+- Drag-and-drop import works: drop files or whole folders onto the window, or use the Add buttons.
 - This is the local MVP; streaming requires the castLabs Electron + Widevine work described in the v2.0 build plan.
 ```

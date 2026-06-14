@@ -5,6 +5,7 @@ html, body, #root { height: 100%; }
 body { font-family: 'Inter', system-ui, sans-serif; color: var(--text); background: #08080c; overflow: hidden; user-select: none; }
 
 .app { display: grid; grid-template-columns: 320px 1fr; height: 100vh; background: radial-gradient(120% 90% at 70% -10%, #15161f, #07080c 65%); }
+.app.dragover { outline: 2px dashed var(--accent); outline-offset: -8px; }
 
 /* sidebar */
 .sidebar { background: rgba(10,11,16,.7); border-right: 1px solid rgba(255,255,255,.07); display: flex; flex-direction: column; padding: 18px 14px; }

@@ -25,6 +25,7 @@ interface State {
 
   importFiles: () => Promise<void>;
   importFolder: () => Promise<void>;
+  importPaths: (paths: string[]) => Promise<void>;
   playAt: (queuePos: number) => Promise<void>;
   toggle: () => Promise<void>;
   next: () => Promise<void>;
@@ -61,6 +62,7 @@ export const useStore = create<State>((set, get) => ({
     const paths = await window.api.pickFolder();
     await addPaths(paths, set, get);
   },
+  importPaths: async (paths) => { await addPaths(paths, set, get); },
 
   playAt: async (queuePos) => {
     const { queue, tracks } = get();

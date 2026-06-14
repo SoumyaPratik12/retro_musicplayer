@@ -8,6 +8,7 @@ class Engine {
   private gain: GainNode | null = null;
   private freq = new Uint8Array(0);
   private time = new Uint8Array(0);
+  private vol = 1; // single source of truth for volume (0..1)
   onEnded: (() => void) | null = null;
   onTime: ((posMs: number, durMs: number) => void) | null = null;
 
@@ -29,6 +30,9 @@ class Engine {
     src.connect(this.analyser);
     this.analyser.connect(this.gain);
     this.gain.connect(this.ctx.destination);
+    // gain is now the sole volume control; keep the element at unity so the two don't multiply
+    this.audio.volume = 1;
+    this.gain.gain.value = this.vol;
     this.freq = new Uint8Array(this.analyser.frequencyBinCount);
     this.time = new Uint8Array(this.analyser.frequencyBinCount);
   }
@@ -42,7 +46,7 @@ class Engine {
   }
   pause() { this.audio.pause(); }
   seek(ms: number) { this.audio.currentTime = ms / 1000; }
-  setVolume(v: number) { if (this.gain) this.gain.gain.value = v; else this.audio.volume = v; }
+  setVolume(v: number) { this.vol = v; if (this.gain) this.gain.gain.value = v; else this.audio.volume = v; }
   setRate(r: number) { this.audio.playbackRate = r; }
   get paused() { return this.audio.paused; }
 

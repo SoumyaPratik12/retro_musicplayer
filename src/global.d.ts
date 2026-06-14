@@ -13,6 +13,7 @@ declare global {
     api: {
       pickFiles: () => Promise<string[]>;
       pickFolder: () => Promise<string[]>;
+      expandPaths: (paths: string[]) => Promise<string[]>;
       readMeta: (filePath: string) => Promise<TrackMeta>;
       loadState: () => Promise<any | null>;
       saveState: (state: any) => Promise<boolean>;

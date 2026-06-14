@@ -15,7 +15,8 @@ export default function App() {
 
   useEffect(() => { // keyboard shortcuts
     const onKey = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement).tagName === 'INPUT') return;
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
       if (e.code === 'Space') { e.preventDefault(); s.toggle(); }
       if (e.code === 'ArrowRight') s.next();
       if (e.code === 'ArrowLeft') s.prev();
@@ -23,11 +24,24 @@ export default function App() {
     window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey);
   }, [s]);
 
+  // drag-and-drop import: drop files or folders anywhere on the window
+  const [dragOver, setDragOver] = useState(false);
+  const onDrop = async (e: React.DragEvent) => {
+    e.preventDefault(); setDragOver(false);
+    const paths = Array.from(e.dataTransfer.files).map(f => (f as any).path as string).filter(Boolean);
+    if (!paths.length) return;
+    const audio = await window.api.expandPaths(paths);
+    if (audio.length) s.importPaths(audio);
+  };
+
   const cur = s.current >= 0 ? s.tracks[s.queue[s.current]] : null;
   const liked = cur ? !!s.liked[cur.path] : false;
 
   return (
-    <div className="app">
+    <div className={'app' + (dragOver ? ' dragover' : '')}
+      onDragOver={e => { e.preventDefault(); if (!dragOver) setDragOver(true); }}
+      onDragLeave={e => { if (e.currentTarget === e.target) setDragOver(false); }}
+      onDrop={onDrop}>
       {/* sidebar / library */}
       <aside className="sidebar">
         <div className="brand">RETRO<span>WAVE</span></div>
@@ -47,7 +61,7 @@ export default function App() {
               </div>
             );
           })}
-          {!s.tracks.length && <div className="empty">Add music to begin.<br />Drag-drop coming; use the buttons above.</div>}
+          {!s.tracks.length && <div className="empty">Add music to begin.<br />Use the buttons above, or drag &amp; drop files / folders here.</div>}
         </div>
         <button className="settings-btn" onClick={() => setSettings(v => !v)}>⚙ Settings</button>
       </aside>

@@ -75,6 +75,19 @@ ipcMain.handle('pick-folder', async () => {
   try { return walkDir(r.filePaths[0], []); } catch { return []; }
 });
 
+// ---- IPC: expand dropped paths (files + folders) into audio file paths ----
+ipcMain.handle('expand-paths', async (_e, paths) => {
+  const out = [];
+  for (const p of paths || []) {
+    try {
+      const st = fs.statSync(p);
+      if (st.isDirectory()) walkDir(p, out);
+      else if (AUDIO_EXT.has(path.extname(p).toLowerCase())) out.push(p);
+    } catch { /* skip unreadable entries */ }
+  }
+  return out;
+});
+
 // ---- IPC: read metadata (tags + album art) ----
 ipcMain.handle('read-meta', async (_e, filePath) => {
   const base = path.basename(filePath).replace(/\.[^.]+$/, '');
