@@ -1,12 +1,15 @@
 // src/App.tsx — full UI: library sidebar + now-playing + controls + settings
 import { useEffect, useState } from 'react';
 import { useStore, boot } from './store';
+import type { SortKey } from './store';
 import { SKINS } from './skins/skins';
 import type { VizStyle } from './skins/skins';
+import { EQ_BANDS } from './audio/engine';
 import Visualizer from './components/Visualizer';
 
 const fmt = (ms: number) => { const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 const VIZ: (VizStyle | '')[] = ['', 'soft', 'bars', 'scope', 'holo', 'needle', 'meter', 'circular', 'reflect', 'ocean', 'infinibar'];
+const hz = (f: number) => (f >= 1000 ? `${f / 1000}k` : `${f}`);
 
 // monochrome line icons (Lucide-style) so the UI reads clean instead of multicolor emoji
 function Icon({ name, size = 22, filled = false }: { name: string; size?: number; filled?: boolean }) {
@@ -22,7 +25,8 @@ function Icon({ name, size = 22, filled = false }: { name: string; size?: number
     volume: <><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14" /></>,
     share: <><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" x2="15.42" y1="13.51" y2="17.49" /><line x1="15.41" x2="8.59" y1="6.51" y2="10.49" /></>,
     bluetooth: <path d="m7 7 10 10-5 5V2l5 5L7 17" />,
-    list: <><line x1="3" x2="21" y1="6" y2="6" /><line x1="3" x2="15" y1="12" y2="12" /><line x1="3" x2="18" y1="18" y2="18" /></>
+    list: <><line x1="3" x2="21" y1="6" y2="6" /><line x1="3" x2="15" y1="12" y2="12" /><line x1="3" x2="18" y1="18" y2="18" /></>,
+    search: <><circle cx="11" cy="11" r="7" /><line x1="21" x2="16.65" y1="21" y2="16.65" /></>
   };
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'}
@@ -58,7 +62,8 @@ export default function App() {
     if (audio.length) s.importPaths(audio);
   };
 
-  const cur = s.current >= 0 ? s.tracks[s.queue[s.current]] : null;
+  const byPath = new Map(s.tracks.map(t => [t.path, t]));
+  const cur = s.currentPath ? byPath.get(s.currentPath) || null : null;
   const liked = cur ? !!s.liked[cur.path] : false;
 
   return (
@@ -70,22 +75,59 @@ export default function App() {
       <aside className="sidebar">
         <div className="brand">RETRO<span>WAVE</span></div>
         <div className="lib-actions">
-          <button onClick={() => s.importFiles()}>+ Add files</button>
-          <button onClick={() => s.importFolder()}>+ Add folder</button>
+          <button onClick={() => s.importFiles()}>+ Files</button>
+          <button onClick={() => s.importFolder()}>+ Folder</button>
+          <button className="iconbtn" onClick={() => s.rescan()} title="Rescan watched folders" disabled={!s.watchedFolders.length}>⟳</button>
         </div>
-        <div className="lib-label">Library · {s.tracks.length}</div>
+
+        <div className="search">
+          <Icon name="search" size={15} />
+          <input placeholder="Search title / artist / album" value={s.search} onChange={e => s.setSearch(e.target.value)} />
+        </div>
+
+        <div className="libbar">
+          <select value={s.activePlaylist ?? ''} onChange={e => s.setActivePlaylist(e.target.value || null)}>
+            <option value="">All tracks ({s.tracks.length})</option>
+            {s.playlists.map(pl => <option key={pl.id} value={pl.id}>{pl.name} ({pl.paths.length})</option>)}
+          </select>
+          <button className="iconbtn" onClick={() => s.setActivePlaylist(s.createPlaylist())} title="New playlist">＋</button>
+          {s.activePlaylist && <button className="iconbtn" onClick={() => s.deletePlaylist(s.activePlaylist!)} title="Delete this playlist">🗑</button>}
+        </div>
+
+        <div className="sortbar">
+          <select value={s.sortBy} onChange={e => s.setSort(e.target.value as SortKey)}>
+            <option value="added">Sort: Added</option>
+            <option value="title">Sort: Title</option>
+            <option value="artist">Sort: Artist</option>
+            <option value="album">Sort: Album</option>
+            <option value="duration">Sort: Duration</option>
+          </select>
+          <span className="count">{s.view.length}</span>
+        </div>
+
         <div className="tracklist">
-          {s.queue.map((ti, qi) => {
-            const t = s.tracks[ti];
+          {s.view.map((path, qi) => {
+            const t = byPath.get(path)!;
             return (
-              <div key={t.path} className={'trow' + (qi === s.current ? ' on' : '')} onDoubleClick={() => s.playAt(qi)} onClick={() => s.playAt(qi)}>
-                <div className="tart">{t.picture ? <img src={t.picture} alt="" /> : <span>♪</span>}</div>
-                <div className="tinfo"><div className="tt">{t.title}</div><div className="ta">{t.artist}</div></div>
-                <div className="td">{fmt(t.durationMs)}</div>
+              <div key={path} className={'trow' + (path === s.currentPath ? ' on' : '')}>
+                <div className="tart" onClick={() => s.playAt(qi)}>{t.picture ? <img src={t.picture} alt="" /> : <span>♪</span>}</div>
+                <div className="tinfo" onClick={() => s.playAt(qi)}><div className="tt">{t.title}</div><div className="ta">{t.artist}</div></div>
+                <div className="rowact">
+                  <details className="plmenu">
+                    <summary title="Add to playlist">＋</summary>
+                    <div className="plpop">
+                      {s.playlists.map(pl => <button key={pl.id} onClick={() => s.addToPlaylist(pl.id, path)}>{pl.name}</button>)}
+                      <button className="newpl" onClick={() => s.addToPlaylist(s.createPlaylist(), path)}>＋ New playlist</button>
+                    </div>
+                  </details>
+                  {s.activePlaylist
+                    ? <button className="x" title="Remove from playlist" onClick={() => s.removeFromPlaylist(s.activePlaylist!, path)}>−</button>
+                    : <button className="x" title="Remove from library" onClick={() => s.removeTrack(path)}>✕</button>}
+                </div>
               </div>
             );
           })}
-          {!s.tracks.length && <div className="empty">Add music to begin.<br />Use the buttons above, or drag &amp; drop files / folders here.</div>}
+          {!s.view.length && <div className="empty">{s.tracks.length ? 'No matches.' : 'Add music to begin.'}<br />Use the buttons above, or drag &amp; drop files / folders here.</div>}
         </div>
         <button className="settings-btn" onClick={() => setSettings(v => !v)}>⚙ Settings</button>
       </aside>
@@ -155,10 +197,24 @@ export default function App() {
               {VIZ.map(v => <option key={v} value={v}>{v === '' ? 'Skin default' : v}</option>)}
             </select>
           </label>
+          <div className="field">
+            <div className="eq-head">Equalizer<button className="eqreset" onClick={s.resetEQ}>Reset</button></div>
+            <div className="eq">
+              {EQ_BANDS.map((f, i) => (
+                <label className="eqrow" key={f}>
+                  <span className="eqlab">{hz(f)}</span>
+                  <input type="range" min={-12} max={12} step={1} value={s.eq[i]}
+                    onChange={e => s.setEQ(i, Number(e.target.value))}
+                    style={{ ['--fill' as any]: ((s.eq[i] + 12) / 24 * 100) + '%' }} className="seek" />
+                  <span className="eqval">{s.eq[i] > 0 ? '+' : ''}{s.eq[i]}</span>
+                </label>
+              ))}
+            </div>
+          </div>
           <label className="field row">
             <input type="checkbox" checked={s.scanlines} onChange={e => s.setScanlines(e.target.checked)} /> CRT scanlines
           </label>
-          <p className="hint">Skins &amp; preferences are saved locally and restored on next launch.</p>
+          <p className="hint">Library, playlists, EQ &amp; preferences are saved locally and restored on next launch. Folders you add are watched for changes automatically.</p>
         </div>
       )}
     </div>

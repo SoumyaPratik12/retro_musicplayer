@@ -1,11 +1,16 @@
-// src/audio/engine.ts — Web Audio graph: <audio> -> analyser -> gain -> output
+// src/audio/engine.ts — Web Audio graph: <audio> -> EQ -> analyser -> gain -> output
 import type { Frame } from '../viz/draw';
+
+// 5-band equalizer center frequencies (Hz)
+export const EQ_BANDS = [60, 230, 910, 3600, 14000];
 
 class Engine {
   private audio = new Audio();
   private ctx: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
   private gain: GainNode | null = null;
+  private eq: BiquadFilterNode[] = [];
+  private eqGains: number[] = EQ_BANDS.map(() => 0); // dB, persisted by the store
   private freq = new Uint8Array(0);
   private time = new Uint8Array(0);
   private vol = 1; // single source of truth for volume (0..1)
@@ -27,7 +32,18 @@ class Engine {
     this.analyser.fftSize = 1024;
     this.analyser.smoothingTimeConstant = 0.8;
     this.gain = this.ctx.createGain();
-    src.connect(this.analyser);
+    // EQ chain: src -> [biquad bands] -> analyser -> gain -> destination
+    this.eq = EQ_BANDS.map((freq, i) => {
+      const f = this.ctx!.createBiquadFilter();
+      f.type = i === 0 ? 'lowshelf' : i === EQ_BANDS.length - 1 ? 'highshelf' : 'peaking';
+      f.frequency.value = freq;
+      if (f.type === 'peaking') f.Q.value = 1.1;
+      f.gain.value = this.eqGains[i];
+      return f;
+    });
+    let prev: AudioNode = src;
+    for (const f of this.eq) { prev.connect(f); prev = f; }
+    prev.connect(this.analyser);
     this.analyser.connect(this.gain);
     this.gain.connect(this.ctx.destination);
     // gain is now the sole volume control; keep the element at unity so the two don't multiply
@@ -36,6 +52,9 @@ class Engine {
     this.freq = new Uint8Array(this.analyser.frequencyBinCount);
     this.time = new Uint8Array(this.analyser.frequencyBinCount);
   }
+
+  setEQ(i: number, db: number) { this.eqGains[i] = db; if (this.eq[i]) this.eq[i].gain.value = db; }
+  loadEQ(gains: number[]) { for (let i = 0; i < this.eqGains.length; i++) this.eqGains[i] = gains[i] ?? 0; this.eq.forEach((f, i) => (f.gain.value = this.eqGains[i])); }
 
   load(url: string) { this.audio.src = url; this.audio.load(); }
 

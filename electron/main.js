@@ -71,8 +71,25 @@ ipcMain.handle('pick-files', async () => {
 
 ipcMain.handle('pick-folder', async () => {
   const r = await dialog.showOpenDialog(win, { properties: ['openDirectory'] });
-  if (r.canceled || !r.filePaths[0]) return [];
-  try { return walkDir(r.filePaths[0], []); } catch { return []; }
+  if (r.canceled || !r.filePaths[0]) return { dir: null, files: [] };
+  const dir = r.filePaths[0];
+  try { return { dir, files: walkDir(dir, []) }; } catch { return { dir, files: [] }; }
+});
+
+// ---- folder watching: notify the renderer (debounced) when a watched folder changes ----
+let watchers = [];
+let rescanTimer = null;
+function clearWatchers() { for (const w of watchers) { try { w.close(); } catch {} } watchers = []; }
+function notifyChange(dir) {
+  if (rescanTimer) clearTimeout(rescanTimer);
+  rescanTimer = setTimeout(() => { if (win && !win.isDestroyed()) win.webContents.send('folder-changed', dir); }, 500);
+}
+ipcMain.handle('watch-folders', async (_e, folders) => {
+  clearWatchers();
+  for (const dir of folders || []) {
+    try { watchers.push(fs.watch(dir, { recursive: true }, () => notifyChange(dir))); } catch { /* folder gone / unwatchable */ }
+  }
+  return true;
 });
 
 // ---- IPC: expand dropped paths (files + folders) into audio file paths ----

@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld('api', {
   pickFiles: () => ipcRenderer.invoke('pick-files'),
   pickFolder: () => ipcRenderer.invoke('pick-folder'),
   expandPaths: (paths) => ipcRenderer.invoke('expand-paths', paths),
+  watchFolders: (folders) => ipcRenderer.invoke('watch-folders', folders),
+  onFolderChanged: (cb) => ipcRenderer.on('folder-changed', (_e, dir) => cb(dir)),
   readMeta: (filePath) => ipcRenderer.invoke('read-meta', filePath),
   loadState: () => ipcRenderer.invoke('load-state'),
   saveState: (state) => ipcRenderer.invoke('save-state', state),
