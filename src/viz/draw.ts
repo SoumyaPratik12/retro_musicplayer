@@ -66,5 +66,25 @@ export function drawFrame(ctx: CanvasRenderingContext2D, w: number, h: number, s
       for (let x = 0; x <= w; x += 4) { const y = h * .55 + Math.sin(x * .02 + f.t * .05 - L * 1.1) * amp * .5 + Math.sin(x * .011 - f.t * .03) * amp * .3; x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); }
       ctx.lineTo(w, h); ctx.lineTo(0, h); ctx.closePath(); ctx.fillStyle = L % 2 ? a2 : ac; ctx.globalAlpha = .16 + L * .07; ctx.fill(); }
     ctx.globalAlpha = 1;
+  } else if (style === 'needle') {
+    // analog VU meter: a needle swings across an arc, smoothed toward the live energy
+    const target = Math.min(1, f.energy * 1.35);
+    needleState.l += (target - needleState.l) * 0.22;
+    const v = needleState.l;
+    const cx = w / 2, cy = h * 0.94, R = Math.min(w / 2 - 8, h * 0.82);
+    const A0 = Math.PI * 225 / 180, A1 = Math.PI * 315 / 180; // upper arc, left→right
+    // scale arc + tick marks
+    ctx.strokeStyle = ac; ctx.globalAlpha = .3; ctx.lineWidth = small ? 1 : 2;
+    ctx.beginPath(); ctx.arc(cx, cy, R, A0, A1); ctx.stroke();
+    ctx.globalAlpha = .5;
+    for (let i = 0; i <= 10; i++) { const a = A0 + (A1 - A0) * (i / 10); const r0 = R - (i > 7 ? 8 : 5);
+      ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0); ctx.lineTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R);
+      ctx.strokeStyle = i > 7 ? '#ff5d6c' : ac; ctx.stroke(); }
+    ctx.globalAlpha = 1;
+    // needle
+    const ang = A0 + (A1 - A0) * v;
+    ctx.strokeStyle = ac; ctx.lineWidth = small ? 1.5 : 2.5; ctx.lineCap = 'round'; ctx.shadowBlur = small ? 3 : 7; ctx.shadowColor = ac;
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(ang) * R, cy + Math.sin(ang) * R); ctx.stroke();
+    ctx.shadowBlur = 0; ctx.fillStyle = ac; ctx.beginPath(); ctx.arc(cx, cy, small ? 2 : 3.5, 0, Math.PI * 2); ctx.fill();
   }
 }
