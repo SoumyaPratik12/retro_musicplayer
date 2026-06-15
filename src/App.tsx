@@ -29,12 +29,14 @@ function App() {
     function onKey(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
+      // Accept Ctrl (Windows/Linux) or ⌘ (macOS) as the modifier.
+      const mod = e.ctrlKey || e.metaKey;
       if (e.code === "Space") {
         e.preventDefault();
         void togglePlay();
-      } else if (e.code === "ArrowRight" && e.metaKey) {
+      } else if (e.code === "ArrowRight" && mod) {
         void next();
-      } else if (e.code === "ArrowLeft" && e.metaKey) {
+      } else if (e.code === "ArrowLeft" && mod) {
         void prev();
       }
     }

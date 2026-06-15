@@ -1,11 +1,13 @@
 /**
- * AudioEngine — WKWebView-safe playback + FFT.
+ * AudioEngine — cross-platform (WKWebView-safe) playback + FFT.
  *
  * macOS WKWebView has a long-standing bug where an <audio> element routed
  * through a MediaElementAudioSourceNode produces frozen AnalyserNode data
  * (and local files in <audio> can throw NotSupportedError). So we never use a
  * media element: we decode the whole track with decodeAudioData and play it
  * through an AudioBufferSourceNode, which feeds the AnalyserNode correctly.
+ * Windows (WebView2/Chromium) doesn't have that bug, but the buffer-source
+ * path works there too, so the same code runs on every platform.
  *
  * Graph:  AudioBufferSourceNode -> GainNode -> AnalyserNode -> destination
  *
