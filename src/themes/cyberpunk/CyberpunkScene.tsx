@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Billboard } from "@react-three/drei";
 import * as THREE from "three";
 import type { ThemeSceneProps } from "../types";
-import { damp, sampleBands } from "../shared/analysis";
+import { usePlayer } from "../../store/usePlayer";
+import { BeatDetector, damp, sampleBands } from "../shared/analysis";
 import { NowPlayingSign, TransportCluster } from "../shared/Controls3D";
 
 /* ----------------------------------------------------------------------------
@@ -12,6 +13,9 @@ import { NowPlayingSign, TransportCluster } from "../shared/Controls3D";
    rooftop beacons blink, a central spire pulses with the bass, and the camera
    drifts slowly so the city always feels alive.
 ---------------------------------------------------------------------------- */
+
+const dummy = new THREE.Object3D();
+const tmpColor = new THREE.Color();
 
 /** Procedural building face: a dark slab with randomly lit neon windows. */
 function makeWindowTexture(seed: number): THREE.CanvasTexture {
@@ -235,6 +239,120 @@ function PulseLights({ analyser }: ThemeSceneProps) {
   );
 }
 
+/** Floating neon spectrum equalizer down the avenue — the music visualizer. */
+const EQ_BARS = 14;
+
+function NeonEqualizer({ analyser }: ThemeSceneProps) {
+  const ref = useRef<THREE.InstancedMesh>(null!);
+  const freq = useMemo(() => new Uint8Array(analyser.frequencyBinCount), [analyser]);
+  const heights = useRef<number[]>(new Array(EQ_BARS).fill(0.1));
+  const colors = useMemo(
+    // cyan → magenta neon spectrum
+    () => Array.from({ length: EQ_BARS }, (_, i) => new THREE.Color().setHSL(0.5 + (i / EQ_BARS) * 0.35, 0.9, 0.6)),
+    [],
+  );
+
+  useLayoutEffect(() => {
+    for (let i = 0; i < EQ_BARS; i++) ref.current.setColorAt(i, colors[i]);
+    if (ref.current.instanceColor) ref.current.instanceColor.needsUpdate = true;
+  }, [colors]);
+
+  useFrame((_, dt) => {
+    analyser.getByteFrequencyData(freq as Uint8Array<ArrayBuffer>);
+    const usable = Math.floor(freq.length * 0.5);
+    const per = Math.max(1, Math.floor(usable / EQ_BARS));
+    const startX = -((EQ_BARS - 1) * 0.55) / 2;
+    const baseY = 1.8;
+
+    for (let i = 0; i < EQ_BARS; i++) {
+      let sum = 0;
+      for (let j = 0; j < per; j++) sum += freq[i * per + j] ?? 0;
+      const v = sum / per / 255;
+      heights.current[i] = damp(heights.current[i], 0.15 + v * 5, 16, dt);
+      const h = heights.current[i];
+      dummy.position.set(startX + i * 0.55, baseY + h / 2, -3.5);
+      dummy.scale.set(0.4, h, 0.4);
+      dummy.updateMatrix();
+      ref.current.setMatrixAt(i, dummy.matrix);
+      tmpColor.copy(colors[i]).multiplyScalar(0.5 + v * 2.6);
+      ref.current.setColorAt(i, tmpColor);
+    }
+    ref.current.instanceMatrix.needsUpdate = true;
+    if (ref.current.instanceColor) ref.current.instanceColor.needsUpdate = true;
+  });
+
+  return (
+    <instancedMesh ref={ref} args={[undefined, undefined, EQ_BARS]} frustumCulled={false}>
+      <boxGeometry args={[1, 1, 1]} />
+      <meshStandardMaterial emissive="#ffffff" emissiveIntensity={1.1} toneMapped={false} roughness={0.35} />
+    </instancedMesh>
+  );
+}
+
+/** Neon notes that burst upward on every detected beat. */
+const MAX_NOTES = 40;
+
+function NeonNotes({ analyser }: ThemeSceneProps) {
+  const ref = useRef<THREE.InstancedMesh>(null!);
+  const freq = useMemo(() => new Uint8Array(analyser.frequencyBinCount), [analyser]);
+  const beat = useMemo(() => new BeatDetector(1.3, 220), []);
+  const notes = useRef(
+    Array.from({ length: MAX_NOTES }, () => ({
+      life: 0,
+      pos: new THREE.Vector3(),
+      vel: new THREE.Vector3(),
+      hue: 0,
+    })),
+  );
+
+  useFrame((s, dt) => {
+    const { bass } = sampleBands(analyser, freq);
+    const now = s.clock.elapsedTime * 1000;
+    const playing = usePlayer.getState().isPlaying;
+
+    if (playing && beat.update(bass, now)) {
+      let spawned = 0;
+      for (const n of notes.current) {
+        if (n.life <= 0) {
+          n.life = 1;
+          n.pos.set((Math.random() - 0.5) * 7, 1.8, -3.5 + (Math.random() - 0.5) * 1.5);
+          n.vel.set((Math.random() - 0.5) * 1.2, 2.6 + Math.random() * 1.6, (Math.random() - 0.5) * 1.2);
+          n.hue = 0.5 + Math.random() * 0.35;
+          if (++spawned >= 4) break;
+        }
+      }
+    }
+
+    notes.current.forEach((n, i) => {
+      if (n.life > 0) {
+        n.life -= dt * 0.5;
+        n.pos.addScaledVector(n.vel, dt);
+        const sc = Math.max(0.001, n.life) * 0.3;
+        dummy.position.copy(n.pos);
+        dummy.scale.set(sc, sc, sc);
+        dummy.rotation.set(0, n.pos.y, 0);
+        dummy.updateMatrix();
+        ref.current.setMatrixAt(i, dummy.matrix);
+        tmpColor.setHSL(n.hue, 0.9, 0.6).multiplyScalar(2.2);
+        ref.current.setColorAt(i, tmpColor);
+      } else {
+        dummy.scale.set(0.0001, 0.0001, 0.0001);
+        dummy.updateMatrix();
+        ref.current.setMatrixAt(i, dummy.matrix);
+      }
+    });
+    ref.current.instanceMatrix.needsUpdate = true;
+    if (ref.current.instanceColor) ref.current.instanceColor.needsUpdate = true;
+  });
+
+  return (
+    <instancedMesh ref={ref} args={[undefined, undefined, MAX_NOTES]} frustumCulled={false}>
+      <boxGeometry args={[1, 1, 1]} />
+      <meshStandardMaterial emissive="#ffffff" emissiveIntensity={1} toneMapped={false} />
+    </instancedMesh>
+  );
+}
+
 function CameraRig() {
   useFrame((s) => {
     const t = s.clock.elapsedTime;
@@ -258,6 +376,10 @@ export default function CyberpunkScene({ analyser }: ThemeSceneProps) {
       <Blinkers />
       <Spire analyser={analyser} />
       <Traffic analyser={analyser} />
+
+      {/* Music visualizer — floating neon equalizer + beat-burst notes */}
+      <NeonEqualizer analyser={analyser} />
+      <NeonNotes analyser={analyser} />
 
       {/* Wet, reflective street */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, -6]}>
