@@ -2,9 +2,10 @@ use serde::Serialize;
 use walkdir::WalkDir;
 
 /// File extensions we treat as playable audio when scanning a folder.
-/// Note: actual decode support in v1 depends on the platform WebView
-/// (WKWebView on macOS). MP3/M4A/AAC/WAV/AIFF/FLAC decode reliably;
-/// OGG/Opus may not. See README "Supported formats".
+/// Note: actual decode support in v1 depends on the platform WebView.
+/// Windows (WebView2/Chromium) decodes all of these; macOS (WKWebView)
+/// decodes MP3/M4A/AAC/WAV/AIFF/FLAC reliably but may not decode OGG/Opus.
+/// See README "Supported formats".
 const AUDIO_EXTS: &[&str] = &[
     "mp3", "m4a", "aac", "wav", "wave", "aif", "aiff", "flac", "ogg", "oga", "opus",
 ];

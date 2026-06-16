@@ -143,7 +143,7 @@ export function TransportCluster({ body, icon, size = 0.6, position = [0, 0, 0] 
 
 /* --------------------------------------------------- Now-playing sign */
 
-export type SignVariant = "minecraft" | "lofi";
+export type SignVariant = "minecraft" | "lofi" | "cyberpunk" | "vaporwave";
 
 function makeTextTexture(title: string, artist: string, variant: SignVariant): THREE.CanvasTexture {
   const W = 512;
@@ -156,10 +156,28 @@ function makeTextTexture(title: string, artist: string, variant: SignVariant): T
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
-  const titleFont = variant === "minecraft" ? '700 46px "Courier New", monospace' : '600 46px "Helvetica Neue", sans-serif';
-  const artistFont = variant === "minecraft" ? '400 30px "Courier New", monospace' : '400 30px "Helvetica Neue", sans-serif';
-  const titleColor = variant === "minecraft" ? "#fdf6c8" : "#eaf2ff";
-  const artistColor = variant === "minecraft" ? "#9fe07a" : "#8fd0ff";
+  // Fonts use only web-safe families so they render correctly without any
+  // external font being loaded.
+  const titleFont =
+    variant === "minecraft" ? '700 46px "Courier New", monospace'
+    : variant === "cyberpunk" ? '900 46px Arial, sans-serif'
+    : variant === "vaporwave" ? 'italic 800 46px Arial, sans-serif'
+    : '600 46px "Helvetica Neue", sans-serif';
+  const artistFont =
+    variant === "minecraft" ? '400 30px "Courier New", monospace'
+    : variant === "cyberpunk" ? '700 28px Arial, sans-serif'
+    : variant === "vaporwave" ? 'italic 400 30px Arial, sans-serif'
+    : '400 30px "Helvetica Neue", sans-serif';
+  const titleColor =
+    variant === "minecraft" ? "#fdf6c8"
+    : variant === "cyberpunk" ? "#00f2ff"
+    : variant === "vaporwave" ? "#ffffff"
+    : "#eaf2ff";
+  const artistColor =
+    variant === "minecraft" ? "#9fe07a"
+    : variant === "cyberpunk" ? "#ff007b"
+    : variant === "vaporwave" ? "#74e1ff"
+    : "#8fd0ff";
 
   const clip = (s: string, max: number) => {
     ctx.font = titleFont;
@@ -215,6 +233,10 @@ export function NowPlayingSign({ variant, width = 2.6, position = [0, 0, 0] }: S
         <boxGeometry args={[width * 1.06, h * 1.28, 0.08]} />
         {variant === "minecraft" ? (
           <meshStandardMaterial color="#6b4a2b" roughness={0.9} />
+        ) : variant === "cyberpunk" ? (
+          <meshStandardMaterial color="#050510" roughness={0.2} metalness={0.9} emissive="#001a1a" emissiveIntensity={0.5} />
+        ) : variant === "vaporwave" ? (
+          <meshStandardMaterial color="#350042" roughness={0.2} metalness={0.6} emissive="#1a001a" emissiveIntensity={0.5} />
         ) : (
           <meshStandardMaterial color="#15131b" roughness={0.5} metalness={0.3} emissive="#0a1820" emissiveIntensity={0.4} />
         )}
